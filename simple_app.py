@@ -1,8 +1,78 @@
+import sys
+import traceback
+import logging
 from typing import List, Literal, Any, Dict, Optional    
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import json
+from cryptography.fernet import Fernet
+import base64
+import os
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# SECURITY WARNING: In a production environment, NEVER hardcode encryption keys!
+# Keys should be:
+# 1. Stored in a secure key management system
+# 2. Rotated regularly
+# 3. Different for each environment (dev/staging/prod)
+# 4. Backed up securely
+# Consider using services like AWS KMS, Azure Key Vault, or HashiCorp Vault
+try:
+    logger.debug("Generating encryption key...")
+    ENCRYPTION_KEY = Fernet.generate_key()  # Generate a new key each time the server starts
+    fernet = Fernet(ENCRYPTION_KEY)
+    logger.debug("Encryption key generated successfully")
+except Exception as e:
+    logger.error(f"Error generating encryption key: {str(e)}")
+    logger.error(traceback.format_exc())
+    raise
+
+def encrypt_string(text: str) -> str:
+    """Encrypt a string using Fernet symmetric encryption."""
+    if not text:
+        return text
+    return base64.urlsafe_b64encode(
+        fernet.encrypt(text.encode())
+    ).decode('utf-8')
+
+def decrypt_string(encrypted_text: str) -> str:
+    """Decrypt a Fernet-encrypted string."""
+    if not encrypted_text:
+        return encrypted_text
+    try:
+        decrypted = fernet.decrypt(
+            base64.urlsafe_b64decode(encrypted_text.encode())
+        )
+        return decrypted.decode('utf-8')
+    except Exception as e:
+        raise ValueError(f"Failed to decrypt string: {str(e)}")
+
+def encrypt_patient_data(patient_resource: Dict[str, Any]) -> Dict[str, Any]:
+    """Encrypt sensitive fields in a Patient resource."""
+    if not isinstance(patient_resource, dict):
+        return patient_resource
+        
+    # Handle name fields
+    if "name" in patient_resource and isinstance(patient_resource["name"], list):
+        for name in patient_resource["name"]:
+            if isinstance(name, dict):
+                if "family" in name:
+                    name["family"] = encrypt_string(name["family"])
+                if "given" in name and isinstance(name["given"], list):
+                    name["given"] = [encrypt_string(g) for g in name["given"]]
+    
+    # Handle address fields
+    if "address" in patient_resource and isinstance(patient_resource["address"], list):
+        for addr in patient_resource["address"]:
+            if isinstance(addr, dict) and "line" in addr and isinstance(addr["line"], list):
+                if addr["line"]:  # Encrypt only the first line
+                    addr["line"][0] = encrypt_string(addr["line"][0])
+    
+    return patient_resource
 
 app = FastAPI(title="FHIR Converter API")
 
@@ -90,7 +160,8 @@ def read_root():
 @app.post("/fhir_resource", response_model=Dict[str, Any])
 async def create_fhir_resource(bundle: FHIRResourceRequest):
     """
-    Process a FHIR Bundle transaction and create/update resources
+    Process a FHIR Bundle transaction and create/update resources.
+    Sensitive data in Patient resources will be encrypted before storage.
     """
     try:
         if bundle.type != "transaction":
@@ -114,7 +185,10 @@ async def create_fhir_resource(bundle: FHIRResourceRequest):
             # Process based on resource type
             if resource_type == "Patient":
                 try:
+                    # Validate the Patient resource first
                     Patient(**resource)
+                    # Encrypt sensitive patient data
+                    resource = encrypt_patient_data(resource)
                 except Exception as e:
                     raise HTTPException(
                         status_code=422,
