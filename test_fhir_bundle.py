@@ -1,14 +1,12 @@
 import requests
 import json
-import sys
 from pprint import pprint
 
-def test_fhir_endpoint():
-    print("Testing FHIR endpoint...")
-    print("Connecting to FastAPI server...")
+def test_fhir_bundle():
+    print("Testing FHIR Bundle endpoint...")
     
-    # Create a FHIR Bundle transaction
-    sample_data = {
+    # FHIR Bundle transaction
+    fhir_bundle = {
         "resourceType": "Bundle",
         "type": "transaction",
         "entry": [
@@ -88,27 +86,38 @@ def test_fhir_endpoint():
     }
 
     try:
-        print("Sending request to http://127.0.0.1:8000/fhir_resource...")
+        # First check if server is running
+        health_check = requests.get("http://127.0.0.1:8000/")
+        if health_check.ok:
+            print("Server is running, proceeding with test...")
+        else:
+            print("Server health check failed. Make sure the server is running.")
+            return
+
+        # Send the FHIR Bundle
+        print("\nSending FHIR Bundle transaction...")
         response = requests.post(
             "http://127.0.0.1:8000/fhir_resource",
-            json=sample_data,
-            timeout=30  # 30 seconds timeout
+            json=fhir_bundle,
+            headers={"Content-Type": "application/json"},
+            timeout=30
         )
         
-        print(f"Status Code: {response.status_code}")
+        print(f"\nStatus Code: {response.status_code}")
+        
         if response.ok:
-            print("\nSuccess! FHIR Bundle Response:")
+            print("\nSuccess! Transaction Response Bundle:")
             pprint(response.json())
         else:
             print("\nError Response:")
-            pprint(response.text)
+            pprint(response.json())
             
     except requests.exceptions.ConnectionError as e:
-        print(f"Connection Error: Could not connect to the server. Is it running?")
+        print(f"\nConnection Error: Could not connect to the server. Is it running?")
         print(f"Error details: {e}")
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        print(f"\nUnexpected error: {e}")
         raise
 
 if __name__ == "__main__":
-    test_fhir_endpoint()
+    test_fhir_bundle()
