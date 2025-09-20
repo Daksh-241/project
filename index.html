@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Register - AYUSH Lookup</title>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        background: linear-gradient(135deg, #fbc2eb, #a6c1ee);
+      }
+      .card {
+        background: #fff;
+        padding: 40px;
+        border-radius: 15px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 400px;
+        text-align: center;
+      }
+      h2 {
+        margin-bottom: 25px;
+        color: #333;
+      }
+      input {
+        width: 100%;
+        padding: 12px;
+        margin: 10px 0;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        font-size: 16px;
+      }
+      button {
+        width: 100%;
+        padding: 12px;
+        margin-top: 15px;
+        border: none;
+        border-radius: 8px;
+        background-color: #4caf50;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      .error {
+        color: red;
+        margin-top: 10px;
+        font-size: 14px;
+      }
+      p {
+        margin-top: 15px;
+        font-size: 14px;
+      }
+      a {
+        color: #4caf50;
+        text-decoration: none;
+        font-weight: 500;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>Register User</h2>
+      <form onsubmit="registerUser(event)">
+        <input type="text" id="username" placeholder="Username" required />
+        <input type="email" id="email" placeholder="Email" required />
+        <button type="submit">Register</button>
+      </form>
+      <div id="error" class="error"></div>
+      <p>Already have an account? <a href="login.html">Login here</a></p>
+    </div>
+
+    <script>
+      async function registerUser(event) {
+        event.preventDefault();
+        const username = document.getElementById("username").value.trim();
+        const email = document.getElementById("email").value.trim();
+        const errorEl = document.getElementById("error");
+        errorEl.textContent = "";
+
+        try {
+          const res = await fetch("http://127.0.0.1:8000/users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, email }),
+          });
+          const data = await res.json();
+          if (res.status === 200) {
+            localStorage.setItem(
+              "user",
+              JSON.stringify({
+                user_id: data.id,
+                username: data.username,
+                email: data.email,
+                conditions: [],
+              })
+            );
+            window.location.href = "profile.html";
+          } else {
+            errorEl.textContent =
+              data.detail ||
+              "Error creating user (maybe username/email exists)";
+          }
+        } catch (err) {
+          console.error(err);
+          errorEl.textContent = "Error connecting to server";
+        }
+      }
+    </script>
+  </body>
+</html>

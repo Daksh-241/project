@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Search Diseases - AYUSH Lookup</title>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        padding: 20px;
+        margin: 0;
+        background: linear-gradient(135deg, #fbc2eb, #a6c1ee);
+      }
+      h2,
+      h3 {
+        color: #333;
+      }
+      .search-container {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+      input[type="text"] {
+        flex: 1;
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        font-size: 16px;
+      }
+      button {
+        padding: 12px 20px;
+        border: none;
+        border-radius: 8px;
+        background: #4caf50;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+        transition: 0.3s;
+      }
+      button:hover {
+        background: #45a049;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin-top: 15px;
+      }
+      li {
+        padding: 12px;
+        margin: 5px 0;
+        border-radius: 8px;
+        cursor: pointer;
+        background: white;
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+        transition: 0.2s;
+      }
+      li:hover {
+        transform: scale(1.02);
+      }
+      li.namaste {
+        background: #d4edda;
+      }
+      li.icd {
+        background: #cce5ff;
+      }
+      #detailedResult {
+        margin-top: 20px;
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+      }
+      .info {
+        color: #555;
+        margin-bottom: 10px;
+        font-style: italic;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Search for Condition</h2>
+    <div class="search-container">
+      <input type="text" id="search" placeholder="Type a term..." />
+      <button type="button" onclick="searchTerm()">Search</button>
+      <button onclick="backToProfile()">Back to Profile</button>
+    </div>
+
+    <div id="infoMessage" class="info"></div>
+    <ul id="results"></ul>
+    <div id="detailedResult"></div>
+
+    <script>
+      const user = JSON.parse(localStorage.getItem("user"));
+      if (!user) window.location.href = "login.html";
+
+      const resultsEl = document.getElementById("results");
+      const detailedEl = document.getElementById("detailedResult");
+      const infoEl = document.getElementById("infoMessage");
+
+      async function searchTerm() {
+        const query = document.getElementById("search").value.trim();
+        resultsEl.innerHTML = "";
+        detailedEl.innerHTML = "";
+        infoEl.textContent = "";
+
+        if (!query) {
+          alert("Please type a term");
+          return;
+        }
+
+        try {
+          const res = await fetch("http://127.0.0.1:8000/lookup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id: user.user_id,
+              disease_text: query,
+            }),
+          });
+
+          const data = await res.json();
+          const result = data.result;
+
+          if (result) {
+            if (result.error && result.suggestions) {
+              // Fuzzy / partial match
+              infoEl.textContent = result.error;
+              resultsEl.innerHTML = "<h3>Suggestions:</h3>";
+              result.suggestions.forEach((s) => {
+                const li = document.createElement("li");
+                li.className = "icd";
+                li.textContent = `${s.label} (${
+                  s.discipline
+                }) - Score: ${s.score.toFixed(2)}`;
+                li.onclick = () =>
+                  addConditionFromLookup({
+                    label: s.label,
+                    discipline: s.discipline,
+                  });
+                resultsEl.appendChild(li);
+              });
+            } else if (result.error) {
+              // No match at all
+              infoEl.textContent = result.error;
+            } else {
+              // Exact match
+              const merged = result.merged || {};
+              const li = document.createElement("li");
+              li.className = "namaste";
+              li.textContent = `${result.label} (${result.discipline})`;
+              li.onclick = () => addConditionFromLookup(result);
+              resultsEl.appendChild(li);
+
+              let detailsHTML = `
+          <h3>Detailed Information</h3>
+          <p><strong>Discipline:</strong> ${result.discipline || "-"}</p>
+          <p><strong>Code:</strong> ${result.code || "-"}</p>
+          <p><strong>Label:</strong> ${result.label || "-"}</p>
+        `;
+              if (merged) {
+                detailsHTML += `
+            <h4>Merged Data</h4>
+            <p><strong>ICD Code:</strong> ${merged["uni_icd-11"] || "-"}</p>
+            <p><strong>ICD Name:</strong> ${merged["name_icd"] || "-"}</p>
+            <p><strong>Siddha Code:</strong> ${merged.siddha_code || "-"}</p>
+            <p><strong>Unani Code:</strong> ${merged.unani_code || "-"}</p>
+            <p><strong>Remedies:</strong> ${merged.remedies || "-"}</p>
+          `;
+              }
+              detailedEl.innerHTML = detailsHTML;
+            }
+          }
+        } catch (err) {
+          console.error(err);
+          alert("Error fetching results from server");
+        }
+      }
+
+      async function addConditionFromLookup(condition) {
+        const query = document.getElementById("search").value.trim();
+
+        try {
+          const res = await fetch("http://127.0.0.1:8000/save_lookup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id: user.user_id,
+              disease_text: query,
+              result: condition, // Send the entire selected disease object
+            }),
+          });
+
+          if (res.ok) {
+            alert(`${condition.label} added!`);
+            window.location.href = 'profile.html';
+          } else {
+            alert("Error saving condition to database.");
+          }
+        } catch (err) {
+          console.error(err);
+          alert("Error connecting to server to save condition.");
+        }
+      }
+
+      function backToProfile() {
+        localStorage.setItem("user", JSON.stringify(user));
+        window.location.href = "profile.html";
+      }
+    </script>
+  </body>
+</html>
