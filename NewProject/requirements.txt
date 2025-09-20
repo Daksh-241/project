@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+openpyxl
+pandas
+fuzzywuzzy
+python-Levenshtein
+xlrd
+fhir.resources
+requests
