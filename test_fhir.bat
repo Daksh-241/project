@@ -1,3 +1,4 @@
 @echo off
-cd C:\Users\DY15D\OneDrive\Desktop\NewProject\NewProject
-C:\Users\DY15D\OneDrive\Desktop\NewProject\.venv\Scripts\python.exe simple_test.py
+rem Change directory to the script's location
+cd /d "%~dp0"
+.\.venv\Scripts\python.exe simple_test.py

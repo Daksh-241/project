@@ -1,6 +1,6 @@
 import sys
-import traceback
 import logging
+import traceback
 from typing import List, Literal, Any, Dict, Optional    
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,15 +21,8 @@ logger = logging.getLogger(__name__)
 # 3. Different for each environment (dev/staging/prod)
 # 4. Backed up securely
 # Consider using services like AWS KMS, Azure Key Vault, or HashiCorp Vault
-try:
-    logger.debug("Generating encryption key...")
-    ENCRYPTION_KEY = Fernet.generate_key()  # Generate a new key each time the server starts
-    fernet = Fernet(ENCRYPTION_KEY)
-    logger.debug("Encryption key generated successfully")
-except Exception as e:
-    logger.error(f"Error generating encryption key: {str(e)}")
-    logger.error(traceback.format_exc())
-    raise
+ENCRYPTION_KEY = Fernet.generate_key()  # Generate a new key each time the server starts
+fernet = Fernet(ENCRYPTION_KEY)
 
 def encrypt_string(text: str) -> str:
     """Encrypt a string using Fernet symmetric encryption."""
@@ -74,16 +67,24 @@ def encrypt_patient_data(patient_resource: Dict[str, Any]) -> Dict[str, Any]:
     
     return patient_resource
 
-app = FastAPI(title="FHIR Converter API")
+try:
+    logger.debug("Initializing FastAPI application...")
+    app = FastAPI(title="FHIR Converter API")
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    # Add CORS middleware
+    logger.debug("Configuring CORS middleware...")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    logger.debug("CORS middleware configured successfully")
+except Exception as e:
+    logger.error(f"Error during application initialization: {str(e)}")
+    logger.error(traceback.format_exc())
+    raise
 
 # FHIR Resource Models
 class Identifier(BaseModel):
